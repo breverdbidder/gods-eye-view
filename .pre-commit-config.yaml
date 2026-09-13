@@ -1,0 +1,7 @@
+# Local gate: pip install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+        args: ["protect", "--staged", "--config", ".gitleaks.toml", "--redact=100"]
