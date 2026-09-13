@@ -1,0 +1,93 @@
+# Ecosystem security gate - gitleaks (secrets), zizmor (Actions lint),
+# trivy (deps/IaC), trufflehog (nightly verified-secret backstop).
+# Scanners are pinned-release binaries; the only third-party Action is checkout (SHA-pinned).
+name: security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: '17 4 * * *' # nightly backstop, platform-owned clock
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run gitleaks
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          curl -sfL -o gl.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          tar xzf gl.tar.gz gitleaks
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            ./gitleaks git --config .gitleaks.toml --redact=100 --log-opts="--all origin/$BASE_REF..HEAD" .
+          else
+            ./gitleaks git --config .gitleaks.toml --redact=100 .
+          fi
+
+  zizmor:
+    # Advisory during rollout: existing workflow debt would fail every PR.
+    # Flip to blocking after the zizmor fix wave lands.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Run zizmor
+        run: |
+          curl -sfL -o z.tar.gz https://github.com/zizmorcore/zizmor/releases/download/v1.30.1/zizmor-x86_64-unknown-linux-gnu.tar.gz
+          tar xzf z.tar.gz
+          ./zizmor --min-severity medium --min-confidence high .
+
+  trivy:
+    # Advisory during rollout; flip to blocking after baseline triage.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Run trivy (fixable HIGH/CRITICAL)
+        run: |
+          curl -sfL -o t.tar.gz https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-64bit.tar.gz
+          tar xzf t.tar.gz trivy
+          ./trivy fs --scanners vuln,misconfig --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --skip-dirs .git .
+
+  trufflehog-verified:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run trufflehog (verified secrets only, values never printed)
+        run: |
+          curl -sfL -o th.tar.gz https://github.com/trufflesecurity/trufflehog/releases/download/v3.90.13/trufflehog_3.90.13_linux_amd64.tar.gz
+          tar xzf th.tar.gz trufflehog
+          ./trufflehog git file://. --only-verified --json --no-update \
+            | jq -c 'del(.Raw, .RawV2) | {DetectorName, Verified, SourceMetadata}' > findings.ndjson || true
+          if [ -s findings.ndjson ]; then
+            echo "::error::Verified live secrets found - see masked finding list"
+            cat findings.ndjson
+            exit 1
+          fi
+          echo "No verified live secrets."
