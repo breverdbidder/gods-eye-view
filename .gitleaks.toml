@@ -1,0 +1,57 @@
+# BidDeed/Everest ecosystem secret gate — extends gitleaks defaults.
+title = "breverdbidder-ecosystem"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "telegram-bot-token"
+description = "Telegram Bot API token"
+regex = '''\b\d{8,10}:[A-Za-z0-9_-]{35}\b'''
+tags = ["telegram", "bot", "token"]
+
+[[rules]]
+id = "openrouter-api-key"
+description = "OpenRouter API key"
+regex = '''sk-or-v1-[a-f0-9]{64}'''
+tags = ["openrouter"]
+
+[[rules]]
+id = "mapbox-secret-token"
+description = "Mapbox secret token (sk.)"
+regex = '''sk\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'''
+tags = ["mapbox"]
+
+[[rules]]
+id = "supabase-service-role-jwt"
+description = "Supabase service_role JWT"
+regex = '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'''
+keywords = ["service_role"]
+tags = ["supabase"]
+
+[[rules]]
+id = "supabase-pat"
+description = "Supabase personal access token"
+regex = '''sbp_[a-f0-9]{40}'''
+tags = ["supabase"]
+
+[[rules]]
+id = "cloudflare-api-token"
+description = "Cloudflare API token"
+regex = '''[A-Za-z0-9_-]{40}'''
+keywords = ["CLOUDFLARE_API_TOKEN", "CF_API_TOKEN", "cf_api_token"]
+tags = ["cloudflare"]
+
+[[rules]]
+id = "fal-api-key"
+description = "fal.ai API key in env assignment"
+regex = '''[a-f0-9]{32}:[a-f0-9]{32}'''
+keywords = ["FAL_KEY", "fal_key", "FAL_API_KEY"]
+tags = ["fal"]
+
+[allowlist]
+description = "global allowlist - keep narrow, document every entry"
+paths = [
+  '''^\.gitleaks\.toml$''',
+  '''(?i)(^|/)docs/''',
+]
