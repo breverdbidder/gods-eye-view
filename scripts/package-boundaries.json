@@ -2785,5 +2785,10 @@
       "src/sources/featureSource.js"
     ],
     "external": []
+  },
+  "f4d-manifest": {
+    "exports": ["./f4d/manifest"],
+    "modules": ["src/f4d/manifest.js"],
+    "external": []
   }
 }
